@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Logika - Gerak Karakter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .game-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            width: 400px;
+        }
+
+        .game-area {
+            display: grid;
+            grid-template-rows: repeat(5, 50px);
+            grid-template-columns: repeat(5, 50px);
+            gap: 5px;
+            justify-content: center;
+            margin: 20px 0;
+            padding: 10px;
+            border: 2px solid #333;
+            border-radius: 5px;
+            background-color: #e0e0e0;
+        }
+
+        .cell {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .character {
+            width: 30px;
+            height: 30px;
+            background-color: #007bff;
+            border-radius: 50%;
+        }
+
+        .goal {
+            background-color: #28a745;
+        }
+
+        .obstacle {
+            background-color: #ff6b6b;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .message {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="game-container">
+        <h1>Gerak Karakter</h1>
+        <p>Gunakan tombol untuk memindahkan karakter ke tujuan!</p>
+        <div class="game-area" id="gameArea">
+            <!-- Grid akan diisi dinamis -->
+        </div>
+        <button onclick="queueMovement('up')">⬆️</button><br>
+        <button onclick="queueMovement('left')">⬅️</button>
+        <button onclick="queueMovement('down')">⬇️</button>
+        <button onclick="queueMovement('right')">➡️</button>
+        <button onclick="executeMovements()">Play ▶️</button>
+        <button onclick="resetGame()">Reset 🔄</button>
+        <button onclick="undoLastMove()">Undo ↩️</button>
+        <p class="message" id="message"></p>
+    </div>
+
+    <script>
+        const gridSize = 5; // Ukuran grid (5x5)
+        const gameArea = document.getElementById('gameArea');
+        const messageElement = document.getElementById('message');
+        const initialCharacterPosition = { x: 0, y: 0 }; // Posisi awal karakter
+        let characterPosition = { ...initialCharacterPosition }; // Posisi karakter saat ini
+        const goalPosition = { x: 4, y: 4 }; // Posisi tujuan
+        const obstacles = [
+            { x: 1, y: 2 },
+            { x: 2, y: 4 },
+            { x: 3, y: 3 },
+            { x: 4, y: 1 },
+            { x: 2, y: 0 }
+        ]; // Posisi rintangan
+        let movementQueue = []; // Antrian gerakan
+        let historyStack = []; // Stack untuk undo gerakan
+
+        // Generate grid secara dinamis
+        function generateGrid() {
+            gameArea.innerHTML = '';
+            for (let row = 0; row < gridSize; row++) {
+                for (let col = 0; col < gridSize; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+
+                    // Tambahkan karakter
+                    if (row === characterPosition.y && col === characterPosition.x) {
+                        const character = document.createElement('div');
+                        character.className = 'character';
+                        cell.appendChild(character);
+                    }
+
+                    // Tambahkan tujuan
+                    else if (row === goalPosition.y && col === goalPosition.x) {
+                        cell.classList.add('goal');
+                    }
+
+                    // Tambahkan rintangan
+                    else if (obstacles.some(obstacle => obstacle.x === col && obstacle.y === row)) {
+                        cell.classList.add('obstacle');
+                    }
+
+                    gameArea.appendChild(cell);
+                }
+            }
+        }
+
+        // Tambahkan gerakan ke antrian
+        function queueMovement(direction) {
+            movementQueue.push(direction);
+            messageElement.textContent = `Gerakan dalam antrian: ${movementQueue.join(', ')}`;
+            messageElement.style.color = 'blue';
+        }
+
+        // Eksekusi gerakan dalam antrian
+        function executeMovements() {
+            if (movementQueue.length === 0) {
+                messageElement.textContent = 'Tidak ada gerakan dalam antrian!';
+                messageElement.style.color = 'red';
+                return;
+            }
+
+            const interval = setInterval(() => {
+                const direction = movementQueue.shift();
+                moveCharacter(direction);
+
+                if (movementQueue.length === 0) {
+                    clearInterval(interval);
+                }
+            }, 500);
+        }
+
+        // Fungsi untuk memindahkan karakter
+        function moveCharacter(direction) {
+            let newX = characterPosition.x;
+            let newY = characterPosition.y;
+
+            if (direction === 'up') newY--;
+            else if (direction === 'down') newY++;
+            else if (direction === 'left') newX--;
+            else if (direction === 'right') newX++;
+
+            // Cek apakah posisi baru valid
+            if (
+                newX >= 0 && newX < gridSize &&
+                newY >= 0 && newY < gridSize &&
+                !obstacles.some(obstacle => obstacle.x === newX && obstacle.y === newY)
+            ) {
+                historyStack.push({ ...characterPosition }); // Simpan posisi saat ini untuk undo
+                characterPosition = { x: newX, y: newY };
+                generateGrid();
+
+                // Cek apakah mencapai tujuan
+                if (characterPosition.x === goalPosition.x && characterPosition.y === goalPosition.y) {
+                    messageElement.textContent = 'Selamat! Anda mencapai tujuan!';
+                    messageElement.style.color = 'green';
+                } else {
+                    messageElement.textContent = '';
+                }
+            } else {
+                messageElement.textContent = 'Tidak bisa bergerak ke arah itu!';
+                messageElement.style.color = 'red';
+            }
+        }
+
+        // Fungsi untuk mereset permainan
+        function resetGame() {
+            characterPosition = { ...initialCharacterPosition };
+            movementQueue = [];
+            historyStack = [];
+            messageElement.textContent = '';
+            generateGrid();
+        }
+
+        // Fungsi untuk undo gerakan terakhir
+        function undoLastMove() {
+            if (historyStack.length > 0) {
+                characterPosition = historyStack.pop();
+                generateGrid();
+                messageElement.textContent = 'Gerakan terakhir di-undo.';
+                messageElement.style.color = 'orange';
+            } else {
+                messageElement.textContent = 'Tidak ada gerakan untuk di-undo!';
+                messageElement.style.color = 'red';
+            }
+        }
+
+        // Inisialisasi game
+        generateGrid();
+    </script>
+</body>
+
+</html>
